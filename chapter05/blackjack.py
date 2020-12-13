@@ -20,7 +20,7 @@ ACTION_STAND = 1  #  "strike" in the book
 ACTIONS = [ACTION_HIT, ACTION_STAND]
 
 # policy for player
-POLICY_PLAYER = np.zeros(22)
+POLICY_PLAYER = np.zeros(22, dtype=np.int)
 for i in range(12, 20):
     POLICY_PLAYER[i] = ACTION_HIT
 POLICY_PLAYER[20] = ACTION_STAND
@@ -77,21 +77,18 @@ def play(policy_player, initial_state=None, initial_action=None):
     if initial_state is None:
         # generate a random initial state
 
-        # initialize cards of player
-        cards = []
         while player_sum < 12:
             # if sum of player is less than 12, always hit
             card = get_card()
-            cards.append(card)
             player_sum += card_value(card)
-        usable_ace_player = (1 in cards)
 
-        # Always use an ace as 11, unless there are two.
-        # If the player's sum is larger than 21, he must hold two aces.
-        if player_sum > 21:
-            assert player_sum == 22
-            # use one Ace as 1 rather than 11
-            player_sum -= 10
+            # If the player's sum is larger than 21, he may hold one or two aces.
+            if player_sum > 21:
+                assert player_sum == 22
+                # last card must be ace
+                player_sum -= 10
+            else:
+                usable_ace_player |= (1 == card)
 
         # initialize cards of dealer, suppose dealer will show the first card he gets
         dealer_card1 = get_card()
@@ -142,8 +139,8 @@ def play(policy_player, initial_state=None, initial_action=None):
         player_sum += card_value(card)
         # If the player has a usable ace, use it as 1 to avoid busting and continue.
         while player_sum > 21 and ace_count:
-                player_sum -= 10
-                ace_count -= 1
+            player_sum -= 10
+            ace_count -= 1
         # player busts
         if player_sum > 21:
             return state, -1, player_trajectory
@@ -164,8 +161,8 @@ def play(policy_player, initial_state=None, initial_action=None):
         dealer_sum += card_value(new_card)
         # If the dealer has a usable ace, use it as 1 to avoid busting and continue.
         while dealer_sum > 21 and ace_count:
-                dealer_sum -= 10
-                ace_count -= 1
+            dealer_sum -= 10
+            ace_count -= 1
         # dealer busts
         if dealer_sum > 21:
             return state, 1, player_trajectory
@@ -227,10 +224,15 @@ def monte_carlo_es(episodes):
         initial_action = np.random.choice(ACTIONS)
         current_policy = behavior_policy if episode else target_policy_player
         _, reward, trajectory = play(current_policy, initial_state, initial_action)
+        first_visit_check = set()
         for (usable_ace, player_sum, dealer_card), action in trajectory:
             usable_ace = int(usable_ace)
             player_sum -= 12
             dealer_card -= 1
+            state_action = (usable_ace, player_sum, dealer_card, action)
+            if state_action in first_visit_check:
+                continue
+            first_visit_check.add(state_action)
             # update values of state-action pairs
             state_action_values[player_sum, dealer_card, usable_ace, action] += reward
             state_action_pair_count[player_sum, dealer_card, usable_ace, action] += 1
@@ -362,7 +364,7 @@ def figure_5_3():
 
 
 if __name__ == '__main__':
-    figure_5_1()
+    # figure_5_1()
     figure_5_2()
-    figure_5_3()
+    # figure_5_3()
 
